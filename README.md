@@ -13,6 +13,8 @@ $ python3 hamal --object=hull --mesh=hull.asc points.asc
 $ povray +P hull.pov
 ```
 
+Then using your image viewer to view the hull.png.
+
 More details:
 
 ```
