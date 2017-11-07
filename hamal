@@ -1,0 +1,368 @@
+#!/usr/bin/env python3
+
+###################################
+##           几何运算
+###################################
+import math
+
+def distance(x, y, dim = 3):
+    squared_d = 0.0
+    for i in range(0, dim):
+        t = x[i] - y[i]
+        squared_d += t * t
+    return math.sqrt(squared_d)
+
+def vector_from_two_points(src, dest, dim = 3):
+    v = []
+    for i in range(0, dim):
+        v.append(dest[i] - src[i])
+    return v
+
+def point_add_vector(x, v, s, dim = 3):
+    y = []
+    for i in range(0, dim):
+        y.append(x[i] + s * v[i])
+    return y
+
+def space_of_points(points, dim = 3):
+    llc = []
+    urc = []
+    for i in range(0, dim):
+        llc.append(sys.float_info.max)
+        urc.append(-sys.float_info.max)
+    for x in points:
+        for i in range(0, dim):
+            if llc[i] > x[i]:
+                llc[i] = x[i]
+            if urc[i] < x[i]:
+                urc[i] = x[i]
+    center = []
+    for i in range(0, dim):
+        center.append(0.5 *  (urc[i] + llc[i]))
+    r = 0.5 * distance(urc, llc)
+    return (center, r)
+
+###################################
+##           数据解析
+###################################
+
+def points_parser(src_file_name, right_handed = True, dim = 3):
+    points = []
+    with open(src_file_name, 'r') as src:
+        for line in src:
+            coords = line.strip().split()
+            if len(coords) != dim:
+                continue
+            x = []
+            for t in coords:
+                x.append(float(t))
+            if right_handed: # 将 x 的坐标从右手坐标系变换到左手坐标系
+                x[dim - 1] = -x[dim - 1]
+            points.append(x)
+    src.close()
+    return points
+
+def graph_parser(graph_file_name):
+    edges = []
+    with open(graph_file_name, 'r') as graph:
+        for line in graph:
+            coords = line.strip().split()
+            if len(coords) != 2:
+                continue
+            edge = []
+            for t in coords:
+                edge.append(int(t))
+            edges.append(edge)
+    graph.close()
+    return edges
+
+def vector_field_parser(vector_field_file_name, right_handed = True, dim = 3):
+    vectors = []
+    with open(vector_field_file_name, 'r') as vector_field:
+        for line in vector_field:
+            coords = line.strip().split()
+            if len(coords) != 2 * dim:
+                continue
+            x = []
+            y = []
+            for i in range(0, dim):
+                x.append(float(coords[i]))
+                y.append(float(coords[i + dim]))
+            if right_handed: # 将点从右手坐标系变换到左手坐标系
+                x[dim - 1] = -x[dim - 1]
+                y[dim - 1] = -y[dim - 1]
+            v = [x, y]
+            vectors.append(v)
+    vector_field.close()
+    return vectors
+
+def mesh_parser(mesh_file_name, dim = 3):
+    facets = []
+    with open(mesh_file_name, 'r') as mesh:
+        for line in mesh:
+            ids = line.strip().split()
+            if len(ids) != dim:
+                continue
+            f = []
+            for i in range(0, dim):
+                f.append(int(ids[i]))
+            facets.append(f)
+    mesh.close()
+    return facets
+
+        
+###################################
+##           生成模型文件
+###################################
+
+def output_point(file, x, dim):
+    for i in range(0, dim):
+        if i < dim - 1:
+            file.write('%f, ' % (x[i]))
+        else:
+            file.write('%f' % (x[i]))
+
+def output_facet(file, x, dim):
+    for i in range(0, dim):
+        if i < dim - 1:
+            file.write('%d, ' % (x[i]))
+        else:
+            file.write('%d' % (x[i]))
+
+def output_points_model(points, object_name, dim = 3):
+    model = open(object_name + '.inc', 'w')
+    model.write('#declare ' + object_name + ' = union {\n') 
+    for x in points:
+        model.write('  sphere {<')
+        output_point(model, x, dim)
+        model.write('>, point_size_of_' + object_name + '}\n')
+    model.write('} // ' + object_name + ' end\n') 
+    model.close()
+
+def output_graph_model(points, edges, object_name, dim = 3):
+    graph_name = object_name + '_graph'
+    model = open(graph_name + '.inc', 'w')
+    model.write('#declare ' + graph_name + ' = union {\n') 
+    for edge in edges:
+        model.write('  cylinder {')
+        for id in edge:
+            x = points[id]
+            model.write('<')
+            output_point(model, x, dim)
+            model.write('>, ')
+        model.write('line_width_of_' + object_name + '}\n')
+
+    model.write('} // ' + graph_name + ' end\n') 
+    model.close()
+
+def output_vector_field_model(vectors, object_name, dim = 3):
+    vector_field_name = object_name + '_vector_field'
+    model = open(vector_field_name + '.inc', 'w')
+    model.write('#declare ' + vector_field_name + ' = union {\n') 
+    for v in vectors:
+        # 画线
+        model.write('  cylinder {')
+        for x in v:
+            model.write('<')
+            output_point(model, x, dim)
+            model.write('>, ')
+        model.write('line_width_of_' + object_name + '}\n')
+        # 画箭头
+        d = distance(v[0], v[1])
+        normal = vector_from_two_points(v[0], v[1])
+        offset = point_add_vector(v[1], normal, 0.5 * d)
+        model.write('  cone {')
+        model.write('<')
+        output_point(model, offset, dim)
+        model.write('>, 0 ')
+        model.write('<')
+        output_point(model, v[1], dim)
+        model.write('>, arrow_size_of_' + object_name + '}\n')
+    model.write('} // ' + vector_field_name + ' end\n') 
+    model.close()
+
+def output_mesh_frame_model(points, mesh, object_name, dim = 3):
+    mesh_frame_name = object_name + '_mesh_frame'
+    model = open(mesh_frame_name + '.inc', 'w')
+    model.write('#declare ' + mesh_frame_name + ' = union {\n') 
+    for f in mesh:
+        for i in range(0, dim):
+            x = points[f[i]]
+            y = points[(f[(i + 1) % dim])]
+            model.write('  cylinder {')
+            model.write('<')
+            output_point(model, x, dim)
+            model.write('>, ')
+            model.write('<')
+            output_point(model, y, dim)
+            model.write('>, ')            
+            model.write('line_width_of_' + object_name + '}\n')
+    model.write('} // ' + mesh_frame_name + ' end\n')     
+
+def output_mesh_model(points, mesh, object_name, dim = 3):
+    mesh_name = object_name + '_mesh'
+    model = open(mesh_name + '.inc', 'w')
+    model.write('#declare ' + mesh_name + ' = mesh2 {\n')
+    
+    # 构造顶点表
+    model.write('  vertex_vectors {\n')
+    n_of_points = len(points)
+    model.write('    %d,\n' % (n_of_points))
+    for i in range(0, n_of_points):
+        model.write('    <')
+        output_point(model, points[i], dim)
+        if i < n_of_points - 1:
+            model.write('>,\n')
+        else:
+            model.write('>\n')
+    model.write('  }')
+    
+    model.write('  face_indices {\n')
+    n_of_facets = len(mesh)
+    model.write('    %d,\n' % (n_of_facets))
+    for i in range(0, n_of_facets):
+        model.write('    <')
+        output_facet(model, mesh[i], dim)
+        if i < n_of_facets - 1:
+            model.write('>,\n')
+        else:
+            model.write('>\n')
+    model.write('  }')
+
+    model.write('} //' + mesh_name + ' end\n')
+    model.close()
+        
+
+###################################
+##           生成视图文件
+###################################
+
+def view_prelude(view):
+    prelude = [
+        '#version 3.7;\n',
+        '#include "colors.inc"\n',
+        'background {color White}\n',
+        'global_settings {assumed_gamma 1.0}\n\n'
+    ]
+    view.writelines(prelude)
+
+def space_of_scene(view, x, r):
+    view.write('#declare model_center = <%f, %f, %f>;\n' % ((x[0], x[1], x[2])))
+    view.write('#declare model_radius = %f;\n' % (r))
+    view.write('#declare view_center = model_center;\n\n')
+
+def place_camera(view):
+    view.write('camera {\n')
+    view.write('  location <0, 0, -2 * model_radius> + model_center * z\n')
+    view.write('  look_at <0, 0, 0>\n')
+    view.write('  translate view_center\n')
+    view.write('}\n\n')
+
+def place_light_source(view, color = [1.0, 1.0, 1.0]):
+    view.write('light_source {\n')
+    view.write('  model_center + <0, 0, -10 * model_radius>\n')
+    view.write('  color rgb <%f, %f, %f>\n'  % (color[0], color[1], color[2]))
+    view.write('  shadowless\n')
+    view.write('}\n\n')
+
+def set_pen(view, object_name, shape):
+    view.write('#declare point_size_of_' + object_name + ' = %f;\n' % (r * shape[0]))
+    if shape[1]:
+        view.write('#declare line_width_of_' + object_name + ' = %f;\n' % (r * shape[1]))
+    if shape[2]:
+        view.write('#declare arrow_size_of_' + object_name + ' = %f;\n' % (r * shape[2]))
+    view.write('\n')
+
+
+def place_model(view, object_name, color):
+    view.write('#include "' + object_name + '.inc"\n')
+    view.write('object {\n')
+    view.write('  ' + object_name + '\n')
+    view.write('  pigment {\n')
+    view.write('    color ' + color + '\n')
+    view.write('  }\n')
+    view.write('}\n\n')
+
+###################################
+##           命令行界面
+###################################
+
+import os
+import sys
+import argparse
+if __name__=="__main__":
+    opt = argparse.ArgumentParser()
+    opt.add_argument('--graph', metavar = 'file', help = 'graph file')
+    opt.add_argument('--vector-field', metavar = 'file', help = 'vector field file')
+    opt.add_argument('--mesh', metavar = 'file', help = 'mesh file')
+    opt.add_argument('--object', metavar = 'name')
+    opt.add_argument('--point-size', metavar = 'n.n', type = float)
+    opt.add_argument('--line-width', metavar = 'n.n', type = float)
+    opt.add_argument('--arrow_size', metavar = 'n.n', type = float)
+    opt.add_argument('--point-color', metavar = '<r, g, b>')
+    opt.add_argument('--line-color', metavar = '<r, g, b>')
+    opt.add_argument('--facet-color', metavar = '<r, g, b>')
+    opt.add_argument('source', help = 'ASCII format file for points')
+    args = opt.parse_args()
+    
+    if not args.object:
+        (skip, file_name) = os.path.split(args.source)
+        (args.object, skip) = os.path.splitext(file_name)
+            
+    if not args.point_size:
+        args.point_size = 0.0025
+        
+    points = points_parser(args.source)
+    
+    # 生成模型文件
+    output_points_model(points, args.object)
+
+    if args.graph or args.vector_field or args.mesh:
+        if not args.line_width:
+            args.line_width = 0.618 * args.point_size
+        if args.graph:
+            edges = graph_parser(args.graph)
+            output_graph_model(points, edges, args.object)
+        if args.vector_field:
+            if not args.arrow_size:
+                args.arrow_size = args.point_size
+            vectors = vector_field_parser(args.vector_field)
+            output_vector_field_model(vectors, args.object)
+        if args.mesh:
+            mesh = mesh_parser(args.mesh)
+            output_mesh_model(points, mesh, args.object)
+            output_mesh_frame_model(points, mesh, args.object)
+        
+    # 生成视图文件
+    (model_center, r) = space_of_points(points)
+    with open(args.object + '.pov', 'w') as view:
+        view_prelude(view)
+        space_of_scene(view, model_center, r)
+        place_camera(view)
+        place_light_source(view)
+        
+        shape = [args.point_size, args.line_width, args.arrow_size]
+        set_pen(view, args.object, shape)
+        
+        if not args.point_color:
+            args.point_color = 'rgb <1, 0.8, 0.2>'
+        else:
+            args.point_color = 'rgb ' + args.point_color
+        if not args.line_color:
+            args.line_color = 'rgb <0.6, 0.6, 0.6>'
+        else:
+            args.line_color = 'rgb ' + args.line_color
+        if not args.facet_color:
+            args.facet_color = 'rgb <0.3, 1.0, 0.04>'
+        else:
+            args.facet_color = 'rgb ' + args.facet_color
+        
+        place_model(view, args.object, args.point_color)
+        if args.graph:
+            place_model(view, args.object + '_graph', args.line_color)
+        if args.vector_field:
+            place_model(view, args.object + '_vector_field', args.line_color)
+        if args.mesh:
+            place_model(view, args.object + '_mesh_frame', args.line_color)
+            place_model(view, args.object + '_mesh', args.facet_color)
+    view.close()
