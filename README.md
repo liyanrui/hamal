@@ -6,7 +6,7 @@ The following example can show the basic usage of hamal:
 
 ```
 $ rbox 10 > points.asc
-$ qhull i < points TO hull.asc
+$ qhull i < points.asc TO hull.asc
 $ sed -i '1, 2d' points.asc
 $ sed -i '1d' hull.asc
 $ python3 hamal --object=hull --mesh=hull.asc points.asc
