@@ -316,6 +316,16 @@ def place_pseudo_holog_model(view, object_name, color):
         view.write('  }\n')
         view.write('}\n\n')
 
+def view_forward(view, args, placer):
+    placer(view, args.object, args.point_color)
+    if args.graph:
+        placer(view, args.object + '_graph', args.line_color)
+    if args.vector_field:
+        placer(view, args.object + '_vector_field', args.line_color)
+    if args.mesh:
+        placer(view, args.object + '_mesh_frame', args.line_color)
+        placer(view, args.object + '_mesh', args.facet_color)
+
 ###################################
 ##           命令行界面
 ###################################
@@ -400,23 +410,9 @@ if __name__=="__main__":
             args.facet_color = 'rgb ' + args.facet_color
         
         if not args.holography:
-            place_model(view, args.object, args.point_color)
-            if args.graph:
-                place_model(view, args.object + '_graph', args.line_color)
-            if args.vector_field:
-                place_model(view, args.object + '_vector_field', args.line_color)
-            if args.mesh:
-                place_model(view, args.object + '_mesh_frame', args.line_color)
-                place_model(view, args.object + '_mesh', args.facet_color)
+            view_forward(view, args, place_model)
         else:
-            place_pseudo_holog_model(view, args.object, args.point_color)
-            if args.graph:
-                place_pseudo_holog_model(view, args.object + '_graph', args.line_color)
-            if args.vector_field:
-                place_pseudo_holog_model(view, args.object + '_vector_field', args.line_color)
-            if args.mesh:
-                place_pseudo_holog_model(view, args.object + '_mesh_frame', args.line_color)
-                place_pseudo_holog_model(view, args.object + '_mesh', args.facet_color)
+            view_forward(view, args, place_pseudo_holog_model)
             # INI
             with open(args.object + '.ini', 'w') as view_ini:
                 view_ini.write('Input_File_Name = ' + args.object + '.pov\n')
