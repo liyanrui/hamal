@@ -18,6 +18,18 @@ def vector_from_two_points(src, dest, dim = 3):
         v.append(dest[i] - src[i])
     return v
 
+def vector_norm(x, dim = 3):
+    squared_d = 0.0
+    for i in range(0, dim):
+        squared_d += x[i] * x[i]
+    return math.sqrt(squared_d)
+
+def vector_unitize(x, dim = 3):
+    norm = vector_norm(x, dim)
+    for i in range(0, dim):
+        x[i] = x[i] / norm
+    return x
+    
 def point_add_vector(x, v, s, dim = 3):
     y = []
     for i in range(0, dim):
@@ -141,25 +153,27 @@ def output_vector_field_model(points, ends, object_name, dim = 3):
     model.write('#declare ' + vector_field_name + ' = union {\n')
     n = len(points)
     for i in range(0, n):
+        start = points[i]
+        end = ends[i]
         # 画线
         model.write('  cylinder {')
         model.write('<')
-        output_point(model, points[i], dim)
+        output_point(model, start, dim)
         model.write('>, ')
         model.write('<')
-        output_point(model, ends[i], dim)
+        output_point(model, end, dim)
         model.write('>, ')
         model.write('line_width_of_' + object_name + '}\n')
         # 画箭头
-        d = distance(v[0], v[1])
-        normal = vector_from_two_points(points[i], ends[i])
-        offset = point_add_vector(ends[i], normal, 0.5 * d)
+        d = distance(start, end)
+        normal = vector_unitize(vector_from_two_points(start, end))
+        offset = point_add_vector(end, normal, 0.5 * d)
         model.write('  cone {')
         model.write('<')
         output_point(model, offset, dim)
         model.write('>, 0 ')
         model.write('<')
-        output_point(model, ends[i], dim)
+        output_point(model, end, dim)
         model.write('>, arrow_size_of_' + object_name + '}\n')
     model.write('} // ' + vector_field_name + ' end\n') 
     model.close()
@@ -281,7 +295,7 @@ if __name__=="__main__":
     opt.add_argument('--object', metavar = 'name')
     opt.add_argument('--point-size', metavar = 'n.n', type = float)
     opt.add_argument('--line-width', metavar = 'n.n', type = float)
-    opt.add_argument('--arrow_size', metavar = 'n.n', type = float)
+    opt.add_argument('--arrow-size', metavar = 'n.n', type = float)
     opt.add_argument('--point-color', metavar = '<r, g, b>')
     opt.add_argument('--line-color', metavar = '<r, g, b>')
     opt.add_argument('--facet-color', metavar = '<r, g, b>')
