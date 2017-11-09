@@ -249,8 +249,9 @@ def space_of_scene(view, x, r):
     view.write('#declare view_center = model_center;\n\n')
 
 def place_camera(view, offset_coefficient):
+    view.write('#declare offset_coefficient = %f;\n' % (offset_coefficient))
     view.write('camera {\n')
-    view.write('  location -%f * model_radius * z + model_center * z\n' % (offset_coefficient))
+    view.write('  location -offset_coefficient * model_radius * z + model_center * z\n')
     view.write('  look_at <0, 0, 0>\n')
     view.write('  translate view_center\n')
     view.write('}\n\n')
@@ -282,12 +283,12 @@ def place_model(view, object_name, color):
 
 def place_pseudo_holog_model(view, object_name, color):
     view.write('#include "' + object_name + '.inc"\n')
-    view.write('#declare model_offset = 0.6 * model_radius;\n\n')
+    view.write('#declare model_offset = 0.618 * model_radius;\n\n')
     for i in range(0, 4):
         view.write('object {\n')
         view.write('  ' + object_name + '\n')
         view.write('  translate -model_center\n')
-        view.write('  scale 0.5')
+        view.write('  scale 1.0 / offset_coefficient')
         if i == 0: # 正面
             view.write('  rotate clock * 360 * y\n')
         if i == 1: # 背面
@@ -335,7 +336,7 @@ if __name__=="__main__":
     opt.add_argument('--line-color', metavar = '<r, g, b>')
     opt.add_argument('--facet-color', metavar = '<r, g, b>')
     opt.add_argument('--holography', action = 'store_true', help = 'open pseudo holography mode')
-    opt.add_argument('--offset-coefficient', metavar = 'n.n', 
+    opt.add_argument('--offset-coefficient', metavar = 'n.n', type = float, 
                      help = 'coefficient for distance to model center')
     opt.add_argument('source', help = 'ASCII format file for points')
     args = opt.parse_args()
@@ -420,6 +421,6 @@ if __name__=="__main__":
             with open(args.object + '.ini', 'w') as view_ini:
                 view_ini.write('Input_File_Name = ' + args.object + '.pov\n')
                 view_ini.write('Initial_Frame = 1\n')
-                view_ini.write('Final_Frame = 60\n')
+                view_ini.write('Final_Frame = 59\n')
             view_ini.close()
     view.close()
