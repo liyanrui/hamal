@@ -76,26 +76,6 @@ def graph_parser(graph_file_name):
     graph.close()
     return edges
 
-def vector_field_parser(vector_field_file_name, right_handed = True, dim = 3):
-    vectors = []
-    with open(vector_field_file_name, 'r') as vector_field:
-        for line in vector_field:
-            coords = line.strip().split()
-            if len(coords) != 2 * dim:
-                continue
-            x = []
-            y = []
-            for i in range(0, dim):
-                x.append(float(coords[i]))
-                y.append(float(coords[i + dim]))
-            if right_handed: # 将点从右手坐标系变换到左手坐标系
-                x[dim - 1] = -x[dim - 1]
-                y[dim - 1] = -y[dim - 1]
-            v = [x, y]
-            vectors.append(v)
-    vector_field.close()
-    return vectors
-
 def mesh_parser(mesh_file_name, dim = 3):
     facets = []
     with open(mesh_file_name, 'r') as mesh:
@@ -155,28 +135,31 @@ def output_graph_model(points, edges, object_name, dim = 3):
     model.write('} // ' + graph_name + ' end\n') 
     model.close()
 
-def output_vector_field_model(vectors, object_name, dim = 3):
+def output_vector_field_model(points, ends, object_name, dim = 3):
     vector_field_name = object_name + '_vector_field'
     model = open(vector_field_name + '.inc', 'w')
-    model.write('#declare ' + vector_field_name + ' = union {\n') 
-    for v in vectors:
+    model.write('#declare ' + vector_field_name + ' = union {\n')
+    n = len(points)
+    for i in range(0, n):
         # 画线
         model.write('  cylinder {')
-        for x in v:
-            model.write('<')
-            output_point(model, x, dim)
-            model.write('>, ')
+        model.write('<')
+        output_point(model, points[i], dim)
+        model.write('>, ')
+        model.write('<')
+        output_point(model, ends[i], dim)
+        model.write('>, ')
         model.write('line_width_of_' + object_name + '}\n')
         # 画箭头
         d = distance(v[0], v[1])
-        normal = vector_from_two_points(v[0], v[1])
-        offset = point_add_vector(v[1], normal, 0.5 * d)
+        normal = vector_from_two_points(points[i], ends[i])
+        offset = point_add_vector(ends[i], normal, 0.5 * d)
         model.write('  cone {')
         model.write('<')
         output_point(model, offset, dim)
         model.write('>, 0 ')
         model.write('<')
-        output_point(model, v[1], dim)
+        output_point(model, ends[i], dim)
         model.write('>, arrow_size_of_' + object_name + '}\n')
     model.write('} // ' + vector_field_name + ' end\n') 
     model.close()
@@ -326,8 +309,8 @@ if __name__=="__main__":
         if args.vector_field:
             if not args.arrow_size:
                 args.arrow_size = args.point_size
-            vectors = vector_field_parser(args.vector_field)
-            output_vector_field_model(vectors, args.object)
+            ends = points_parser(args.vector_field)
+            output_vector_field_model(points, ends, args.object)
         if args.mesh:
             mesh = mesh_parser(args.mesh)
             output_mesh_model(points, mesh, args.object)
