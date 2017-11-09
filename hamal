@@ -234,11 +234,11 @@ def output_mesh_model(points, mesh, object_name, dim = 3):
 ##           生成视图文件
 ###################################
 
-def view_prelude(view):
+def view_prelude(view, background):
     prelude = [
         '#version 3.7;\n',
         '#include "colors.inc"\n',
-        'background {color White}\n',
+        'background {color ' + background + '}\n',
         'global_settings {assumed_gamma 1.0}\n\n'
     ]
     view.writelines(prelude)
@@ -248,9 +248,9 @@ def space_of_scene(view, x, r):
     view.write('#declare model_radius = %f;\n' % (r))
     view.write('#declare view_center = model_center;\n\n')
 
-def place_camera(view):
+def place_camera(view, offset_coefficient):
     view.write('camera {\n')
-    view.write('  location <0, 0, -2 * model_radius> + model_center * z\n')
+    view.write('  location -%f * model_radius * z + model_center * z\n' % (offset_coefficient))
     view.write('  look_at <0, 0, 0>\n')
     view.write('  translate view_center\n')
     view.write('}\n\n')
@@ -280,6 +280,41 @@ def place_model(view, object_name, color):
     view.write('  }\n')
     view.write('}\n\n')
 
+def place_pseudo_holog_model(view, object_name, color):
+    view.write('#include "' + object_name + '.inc"\n')
+    view.write('#declare model_offset = 0.6 * model_radius;\n\n')
+    for i in range(0, 4):
+        view.write('object {\n')
+        view.write('  ' + object_name + '\n')
+        view.write('  translate -model_center\n')
+        view.write('  scale 0.5')
+        if i == 0: # 正面
+            view.write('  rotate clock * 360 * y\n')
+        if i == 1: # 背面
+            view.write('  rotate 180 * z\n')
+            view.write('  rotate -clock * 360 * y\n')
+        if i == 2: # 右面
+            view.write('  rotate 90 * y\n')
+            view.write('  rotate -90 * z\n')
+            view.write('  rotate clock * 360 * x\n')
+        if i == 3: # 左面
+            view.write('  rotate -90 * y\n')
+            view.write('  rotate 90 * z\n')
+            view.write('  rotate -clock * 360 * x\n')
+        view.write('  translate model_center\n')
+        if i == 0:
+            view.write('  translate -model_offset * y\n')
+        if i == 1:
+            view.write('  translate model_offset * y\n')
+        if i == 2:
+            view.write('  translate -model_offset * x\n')
+        if i == 3:
+            view.write('  translate model_offset * x\n')
+        view.write('  pigment {\n')
+        view.write('    color ' + color + '\n')
+        view.write('  }\n')
+        view.write('}\n\n')
+
 ###################################
 ##           命令行界面
 ###################################
@@ -299,6 +334,9 @@ if __name__=="__main__":
     opt.add_argument('--point-color', metavar = '<r, g, b>')
     opt.add_argument('--line-color', metavar = '<r, g, b>')
     opt.add_argument('--facet-color', metavar = '<r, g, b>')
+    opt.add_argument('--holography', action = 'store_true', help = 'open pseudo holography mode')
+    opt.add_argument('--offset-coefficient', metavar = 'n.n', 
+                     help = 'coefficient for distance to model center')
     opt.add_argument('source', help = 'ASCII format file for points')
     args = opt.parse_args()
     
@@ -307,8 +345,11 @@ if __name__=="__main__":
         (args.object, skip) = os.path.splitext(file_name)
             
     if not args.point_size:
-        args.point_size = 0.0025
-        
+        args.point_size = 0.003
+    
+    if not args.offset_coefficient:
+        args.offset_coefficient = 2
+    
     points = points_parser(args.source)
     
     # 生成模型文件
@@ -333,9 +374,12 @@ if __name__=="__main__":
     # 生成视图文件
     (model_center, r) = space_of_points(points)
     with open(args.object + '.pov', 'w') as view:
-        view_prelude(view)
+        if args.holography:
+            view_prelude(view, 'Black')
+        else:
+            view_prelude(view, 'White')
         space_of_scene(view, model_center, r)
-        place_camera(view)
+        place_camera(view, args.offset_coefficient)
         place_light_source(view)
         
         shape = [args.point_size, args.line_width, args.arrow_size]
@@ -354,12 +398,28 @@ if __name__=="__main__":
         else:
             args.facet_color = 'rgb ' + args.facet_color
         
-        place_model(view, args.object, args.point_color)
-        if args.graph:
-            place_model(view, args.object + '_graph', args.line_color)
-        if args.vector_field:
-            place_model(view, args.object + '_vector_field', args.line_color)
-        if args.mesh:
-            place_model(view, args.object + '_mesh_frame', args.line_color)
-            place_model(view, args.object + '_mesh', args.facet_color)
+        if not args.holography:
+            place_model(view, args.object, args.point_color)
+            if args.graph:
+                place_model(view, args.object + '_graph', args.line_color)
+            if args.vector_field:
+                place_model(view, args.object + '_vector_field', args.line_color)
+            if args.mesh:
+                place_model(view, args.object + '_mesh_frame', args.line_color)
+                place_model(view, args.object + '_mesh', args.facet_color)
+        else:
+            place_pseudo_holog_model(view, args.object, args.point_color)
+            if args.graph:
+                place_pseudo_holog_model(view, args.object + '_graph', args.line_color)
+            if args.vector_field:
+                place_pseudo_holog_model(view, args.object + '_vector_field', args.line_color)
+            if args.mesh:
+                place_pseudo_holog_model(view, args.object + '_mesh_frame', args.line_color)
+                place_pseudo_holog_model(view, args.object + '_mesh', args.facet_color)
+            # INI
+            with open(args.object + '.ini', 'w') as view_ini:
+                view_ini.write('Input_File_Name = ' + args.object + '.pov\n')
+                view_ini.write('Initial_Frame = 1\n')
+                view_ini.write('Final_Frame = 60\n')
+            view_ini.close()
     view.close()
