@@ -342,7 +342,7 @@ if __name__=="__main__":
         set_pen(view, args.object, shape)
         
         if not args.point_color:
-            args.point_color = 'rgb <1, 0.8, 0.2>'
+            args.point_color = 'rgb <0.03, 0.2, 0.4>'
         else:
             args.point_color = 'rgb ' + args.point_color
         if not args.line_color:
