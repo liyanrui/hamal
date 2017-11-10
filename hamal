@@ -293,14 +293,15 @@ def place_pseudo_holog_model(view, object_name, color):
         if i == 0: # 正面
             view.write('  rotate clock * 360 * y\n')
         if i == 1: # 背面
+            view.write('  rotate 180 * y\n')
             view.write('  rotate 180 * z\n')
             view.write('  rotate -clock * 360 * y\n')
         if i == 2: # 右面
-            view.write('  rotate 90 * y\n')
+            view.write('  rotate -90 * y\n')
             view.write('  rotate -90 * z\n')
             view.write('  rotate clock * 360 * x\n')
         if i == 3: # 左面
-            view.write('  rotate -90 * y\n')
+            view.write('  rotate 90 * y\n')
             view.write('  rotate 90 * z\n')
             view.write('  rotate -clock * 360 * x\n')
         view.write('  translate model_center\n')
