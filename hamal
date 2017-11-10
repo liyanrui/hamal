@@ -251,6 +251,7 @@ def space_of_scene(view, x, r):
 def place_camera(view, offset_coefficient):
     view.write('#declare offset_coefficient = %f;\n' % (offset_coefficient))
     view.write('camera {\n')
+    view.write('  orthographic\n')
     view.write('  location -offset_coefficient * model_radius * z + model_center * z\n')
     view.write('  look_at <0, 0, 0>\n')
     view.write('  translate view_center\n')
