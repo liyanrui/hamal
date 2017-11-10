@@ -284,12 +284,12 @@ def place_model(view, object_name, color):
 
 def place_pseudo_holog_model(view, object_name, color):
     view.write('#include "' + object_name + '.inc"\n')
-    view.write('#declare model_offset = 0.618 * model_radius;\n\n')
+    view.write('#declare model_offset = 0.6 * model_radius;\n\n')
     for i in range(0, 4):
         view.write('object {\n')
         view.write('  ' + object_name + '\n')
         view.write('  translate -model_center\n')
-        view.write('  scale 0.382')
+        view.write('  scale 0.4')
         if i == 0: # 正面
             view.write('  rotate clock * 360 * y\n')
         if i == 1: # 背面
