@@ -289,7 +289,7 @@ def place_pseudo_holog_model(view, object_name, color):
         view.write('object {\n')
         view.write('  ' + object_name + '\n')
         view.write('  translate -model_center\n')
-        view.write('  scale 0.4')
+        view.write('  scale 0.4\n')
         if i == 0: # 正面
             view.write('  rotate clock * 360 * y\n')
         if i == 1: # 背面
