@@ -131,6 +131,17 @@ def output_points_model(points, object_name, dim = 3):
     model.write('} // ' + object_name + ' end\n') 
     model.close()
 
+def output_control_points_model(control_points, object_name, dim = 3):
+    control_points_name = object_name + '_control_points'
+    model = open(control_points_name + '.inc', 'w')
+    model.write('#declare ' + control_points_name + ' = union {\n') 
+    for x in control_points:
+        model.write('  sphere {<')
+        output_point(model, x, dim)
+        model.write('>, control_point_size_of_' + object_name + '}\n')
+    model.write('} // ' + control_points_name + ' end\n') 
+    model.close()
+
 def output_graph_model(points, edges, object_name, dim = 3):
     graph_name = object_name + '_graph'
     model = open(graph_name + '.inc', 'w')
@@ -270,8 +281,9 @@ def set_pen(view, object_name, shape):
         view.write('#declare line_width_of_' + object_name + ' = %f;\n' % (r * shape[1]))
     if shape[2]:
         view.write('#declare arrow_size_of_' + object_name + ' = %f;\n' % (r * shape[2]))
+    if shape[3]:
+        view.write('#declare control_point_size_of_' + object_name + ' = %f;\n' % (r * shape[3]))
     view.write('\n')
-
 
 def place_model(view, object_name, color):
     view.write('#include "' + object_name + '.inc"\n')
@@ -320,8 +332,10 @@ def place_pseudo_holog_model(view, object_name, color):
 
 def view_forward(view, args, placer):
     placer(view, args.object, args.point_color)
-    if args.graph:
+    if args.graph or args.curve:
         placer(view, args.object + '_graph', args.line_color)
+    if args.control_points:
+        placer(view, args.object + '_control_points', args.control_point_color)
     if args.vector_field:
         placer(view, args.object + '_vector_field', args.line_color)
     if args.mesh:
@@ -338,15 +352,19 @@ import argparse
 if __name__=="__main__":
     opt = argparse.ArgumentParser()
     opt.add_argument('--graph', metavar = 'file', help = 'graph file')
+    opt.add_argument('--curve', metavar = 'file', help = 'graph file for curve')
+    opt.add_argument('--control-points', metavar = 'file', help = 'control points for curve')
     opt.add_argument('--vector-field', metavar = 'file', help = 'vector field file')
     opt.add_argument('--mesh', metavar = 'file', help = 'mesh file')
     opt.add_argument('--object', metavar = 'name')
     opt.add_argument('--point-size', metavar = 'n.n', type = float)
     opt.add_argument('--line-width', metavar = 'n.n', type = float)
     opt.add_argument('--arrow-size', metavar = 'n.n', type = float)
+    opt.add_argument('--control-point-size', metavar = 'n.n', type = float)
     opt.add_argument('--point-color', metavar = '<r, g, b>')
     opt.add_argument('--line-color', metavar = '<r, g, b>')
     opt.add_argument('--facet-color', metavar = '<r, g, b>')
+    opt.add_argument('--control-point-color', metavar = '<r, g, b>')
     opt.add_argument('--holography', action = 'store_true', help = 'open pseudo holography mode')
     opt.add_argument('--offset-coefficient', metavar = 'n.n', type = float, 
                      help = 'coefficient for distance to model center')
@@ -360,6 +378,9 @@ if __name__=="__main__":
     if not args.point_size:
         args.point_size = 0.003
     
+    if not args.control_point_size:
+        args.control_point_size = args.point_size
+    
     if not args.offset_coefficient:
         args.offset_coefficient = 2
     
@@ -368,12 +389,18 @@ if __name__=="__main__":
     # 生成模型文件
     output_points_model(points, args.object)
 
-    if args.graph or args.vector_field or args.mesh:
+    if args.graph or args.vector_field or args.mesh or args.curve:
         if not args.line_width:
             args.line_width = 0.618 * args.point_size
         if args.graph:
             edges = graph_parser(args.graph)
             output_graph_model(points, edges, args.object)
+        if args.curve:
+            segments = graph_parser(args.curve)
+            output_graph_model(points, segments, args.object)
+        if args.control_points:
+            control_points = points_parser(args.control_points, args.object)
+            output_control_points_model(control_points, args.object)
         if args.vector_field:
             if not args.arrow_size:
                 args.arrow_size = args.point_size
@@ -395,7 +422,10 @@ if __name__=="__main__":
         place_camera(view, args.offset_coefficient)
         place_light_source(view)
         
-        shape = [args.point_size, args.line_width, args.arrow_size]
+        if args.curve:
+            args.point_size = args.line_width
+            args.point_color = args.line_color
+        shape = [args.point_size, args.line_width, args.arrow_size, args.control_point_size]
         set_pen(view, args.object, shape)
         
         if not args.point_color:
@@ -410,7 +440,11 @@ if __name__=="__main__":
             args.facet_color = 'rgb <0.3, 1.0, 0.04>'
         else:
             args.facet_color = 'rgb ' + args.facet_color
-        
+        if not args.control_point_color:
+            args.control_point_color = 'rgb <0.2, 0.7, 0.1>'
+        else:
+            args.control_point_color = 'rgb ' + args.control_point_color
+            
         if not args.holography:
             view_forward(view, args, place_model)
         else:
