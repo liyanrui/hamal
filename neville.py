@@ -1,0 +1,84 @@
+def neville(points, nodes, labels, n, t, dim = 3):
+    if n == 1:
+        return points[0]
+    for i in range(0, n - 1):
+        a = points[i]
+        t_a = nodes[labels[i][0]]
+        b = points[i + 1]
+        t_b = nodes[labels[i + 1][-1]]
+        denom = t_b - t_a
+        x = [0 for _ in range(0, dim)]
+        for j in range(0, dim):
+            x[j] = (t_b - t) * a[j] / denom + (t - t_a) * b[j] / denom
+        points[i] = x
+        labels[i].append(labels[i + 1][-1])
+    x = neville(points, nodes, labels, n - 1, t, dim)
+    return x
+
+def points_parser(src_file_name, dim = 3):
+    points = []
+    with open(src_file_name, 'r') as src:
+        for line in src:
+            coords = line.split()
+            if len(coords) != dim:
+                continue
+            x = None
+            if dim == 1:
+                x = float(float(coords[0]))
+            else:
+                x = [float(c) for c in coords]
+            points.append(x)
+    src.close()
+    return points
+
+def lagrange_curve(points, nodes, sample, dim = 3):
+    n = len(points)
+    labels = [[] for _ in range(0, n)]
+    for i in range(0, n):
+        labels[i].append(i)
+    curve = []
+    span = nodes[-1] - nodes[0]
+    for t in [nodes[0] + (i / sample) * span for i in range(0, sample + 1)]:
+        points_copy = [x[:] for x in points]
+        nodes_copy = [node for node in nodes]
+        labels_copy = [label[:] for label in labels]
+        curve.append(neville(points_copy, nodes_copy, labels_copy, n, t, dim))
+    return curve        
+
+def output_curve(name, curve, dim = 3):
+    with open(name + '.asc', 'w') as sample_points_file:
+        for x in curve:
+            for i in range(0, dim):
+                if i < dim - 1:
+                    sample_points_file.write('%f ' % x[i])
+                else:
+                    sample_points_file.write('%f\n' % x[i])
+    sample_points_file.close()
+    with open(name + '-graph.asc', 'w') as graph_file:
+        for i in range(0, len(curve) - 1):
+            graph_file.write('%d %d\n' % (i, i + 1))
+    graph_file.close()
+    
+import sys
+import argparse
+if __name__=="__main__":
+    opt = argparse.ArgumentParser()
+    opt.add_argument('--nodes', metavar = 'file', help = 'node file')
+    opt.add_argument('--curve', metavar = 'name')
+    opt.add_argument('--sample', metavar = 'n', type = int, help = 'number of sample points')
+    opt.add_argument('--dimension', metavar = 'n', type = int, help = '3 as default dimension')
+    opt.add_argument('source', help = 'ASCII format for points')
+    args = opt.parse_args()
+    if not args.dimension:
+        args.dimension = 3
+        
+    points = points_parser(args.source, args.dimension)
+    nodes = points_parser(args.nodes, 1)
+    
+    if not args.sample:
+        args.sample = 30
+    curve = lagrange_curve(points, nodes, args.sample)
+    if args.curve:
+        output_curve(args.curve, curve, args.dimension)
+    else:
+        sys.stderr.write('curve name not specified!')
