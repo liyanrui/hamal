@@ -26,7 +26,7 @@ def points_parser(src_file_name, dim = 3):
                 continue
             x = None
             if dim == 1:
-                x = float(float(coords[0]))
+                x = float(coords[0])
             else:
                 x = [float(c) for c in coords]
             points.append(x)
