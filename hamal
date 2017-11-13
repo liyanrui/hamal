@@ -422,12 +422,6 @@ if __name__=="__main__":
         place_camera(view, args.offset_coefficient)
         place_light_source(view)
         
-        if args.curve:
-            args.point_size = args.line_width
-            args.point_color = args.line_color
-        shape = [args.point_size, args.line_width, args.arrow_size, args.control_point_size]
-        set_pen(view, args.object, shape)
-        
         if not args.point_color:
             args.point_color = 'rgb <0.1, 0.2, 0.7>'
         else:
@@ -444,6 +438,13 @@ if __name__=="__main__":
             args.control_point_color = 'rgb <0.2, 0.7, 0.1>'
         else:
             args.control_point_color = 'rgb ' + args.control_point_color
+            
+        if args.curve:
+            args.point_size = args.line_width
+            args.point_color = args.line_color
+        
+        shape = [args.point_size, args.line_width, args.arrow_size, args.control_point_size]
+        set_pen(view, args.object, shape)
             
         if not args.holography:
             view_forward(view, args, place_model)
