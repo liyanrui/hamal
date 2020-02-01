@@ -54,13 +54,20 @@ def space_of_points(points, dim = 3):
     r = 0.5 * distance(urc, llc)
     return (center, r)
 
+def space_of_boxes(boxes, dim = 3):
+    points = []
+    for x in boxes:
+        points.append(x[0])
+        points.append(x[1])
+    return space_of_points(points, dim)
+
 ###################################
 ##           数据解析
 ###################################
 
-def points_parser(src_file_name, right_handed = True, dim = 3):
+def points_parser(file_name, right_handed = True, dim = 3):
     points = []
-    with open(src_file_name, 'r') as src:
+    with open(file_name, 'r') as src:
         for line in src:
             coords = line.strip().split()
             if len(coords) != dim:
@@ -74,9 +81,31 @@ def points_parser(src_file_name, right_handed = True, dim = 3):
     src.close()
     return points
 
-def graph_parser(graph_file_name):
+def boxes_parser(file_name, right_handed = True, dim = 3):
+    boxes = []
+    with open(file_name, 'r') as src:
+        for line in src:
+            coords = line.strip().split()
+            n = len(coords)
+            half = int(n / 2)
+            llc = []
+            for i in range(0, half):
+                llc.append(float(coords[i]))
+            if right_handed:
+                llc[dim - 1] = -llc[dim - 1]
+            urc = []
+            for i in range(half, n):
+                urc.append(float(coords[i]))
+            if right_handed:
+                urc[dim - 1] = -urc[dim - 1]
+            box = (llc, urc)
+            boxes.append(box)
+    src.close()
+    return boxes
+
+def graph_parser(file_name):
     edges = []
-    with open(graph_file_name, 'r') as graph:
+    with open(file_name, 'r') as graph:
         for line in graph:
             coords = line.strip().split()
             if len(coords) != 2:
@@ -88,9 +117,9 @@ def graph_parser(graph_file_name):
     graph.close()
     return edges
 
-def mesh_parser(mesh_file_name, dim = 3):
+def mesh_parser(file_name, dim = 3):
     facets = []
-    with open(mesh_file_name, 'r') as mesh:
+    with open(file_name, 'r') as mesh:
         for line in mesh:
             ids = line.strip().split()
             if len(ids) != dim:
@@ -130,6 +159,18 @@ def output_points_model(points, object_name, dim = 3):
         model.write('>, point_size_of_' + object_name + '}\n')
     model.write('} // ' + object_name + ' end\n') 
     model.close()
+
+def output_boxes_model(boxes, object_name, dim = 3):
+    model = open(object_name + '.inc', 'w')
+    model.write('#declare ' + object_name + ' = union {\n')
+    for x in boxes:
+        model.write('  box {\n')
+        model.write('    <')
+        output_point(model, x[0], dim)
+        model.write('>,\n    <')
+        output_point(model, x[1], dim)
+        model.write('>\n  }\n')
+    model.write('} // ' + object_name + ' end\n')
 
 def output_control_points_model(control_points, object_name, dim = 3):
     control_points_name = object_name + '_control_points'
@@ -351,6 +392,7 @@ import sys
 import argparse
 if __name__=="__main__":
     opt = argparse.ArgumentParser()
+    opt.add_argument('--boxes', action = 'store_true', help = 'switch to boxes mode') 
     opt.add_argument('--graph', metavar = 'file', help = 'graph file')
     opt.add_argument('--curve', metavar = 'file', help = 'graph file for curve')
     opt.add_argument('--control-points', metavar = 'file', help = 'control points for curve')
@@ -365,10 +407,10 @@ if __name__=="__main__":
     opt.add_argument('--line-color', metavar = '<r, g, b>')
     opt.add_argument('--facet-color', metavar = '<r, g, b>')
     opt.add_argument('--control-point-color', metavar = '<r, g, b>')
-    opt.add_argument('--holography', action = 'store_true', help = 'open pseudo holography mode')
+    opt.add_argument('--holography', action = 'store_true', help = 'switch to pseudo holography mode')
     opt.add_argument('--offset-coefficient', metavar = 'n.n', type = float, 
                      help = 'coefficient for distance to model center')
-    opt.add_argument('source', help = 'ASCII format file for points')
+    opt.add_argument('source', help = 'ASCII format file for points or boxes')
     args = opt.parse_args()
     
     if not args.object:
@@ -384,35 +426,40 @@ if __name__=="__main__":
     if not args.offset_coefficient:
         args.offset_coefficient = 2
     
-    points = points_parser(args.source)
-    
-    # 生成模型文件
-    output_points_model(points, args.object)
-
-    if args.graph or args.vector_field or args.mesh or args.curve:
-        if not args.line_width:
-            args.line_width = 0.618 * args.point_size
-        if args.graph:
-            edges = graph_parser(args.graph)
-            output_graph_model(points, edges, args.object)
-        if args.curve:
-            segments = graph_parser(args.curve)
-            output_graph_model(points, segments, args.object)
-        if args.control_points:
-            control_points = points_parser(args.control_points, args.object)
-            output_control_points_model(control_points, args.object)
-        if args.vector_field:
-            if not args.arrow_size:
-                args.arrow_size = args.point_size
-            ends = points_parser(args.vector_field)
-            output_vector_field_model(points, ends, args.object)
-        if args.mesh:
-            mesh = mesh_parser(args.mesh)
-            output_mesh_model(points, mesh, args.object)
-            output_mesh_frame_model(points, mesh, args.object)
+    if not args.boxes:
+    	points = points_parser(args.source)
+    	output_points_model(points, args.object)
+    	if args.graph or args.vector_field or args.mesh or args.curve:
+    	    if not args.line_width:
+    	        args.line_width = 0.618 * args.point_size
+    	    if args.graph:
+    	        edges = graph_parser(args.graph)
+    	        output_graph_model(points, edges, args.object)
+    	    if args.curve:
+    	        segments = graph_parser(args.curve)
+    	        output_graph_model(points, segments, args.object)
+    	    if args.control_points:
+    	        control_points = points_parser(args.control_points, args.object)
+    	        output_control_points_model(control_points, args.object)
+    	    if args.vector_field:
+    	        if not args.arrow_size:
+    	            args.arrow_size = args.point_size
+    	        ends = points_parser(args.vector_field)
+    	        output_vector_field_model(points, ends, args.object)
+    	    if args.mesh:
+    	        mesh = mesh_parser(args.mesh)
+    	        output_mesh_model(points, mesh, args.object)
+    	        output_mesh_frame_model(points, mesh, args.object)
+    else:
+        boxes = boxes_parser(args.source)
+        output_boxes_model(boxes, args.object)
         
     # 生成视图文件
-    (model_center, r) = space_of_points(points)
+    if not args.boxes:
+        (model_center, r) = space_of_points(points)
+    else:
+        (model_center, r) = space_of_boxes(boxes)
+    
     with open(args.object + '.pov', 'w') as view:
         if args.holography:
             view_prelude(view, 'Black')
