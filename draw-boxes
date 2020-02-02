@@ -1,0 +1,278 @@
+#!/usr/bin/env python3
+import sys
+
+###################################
+##           几何运算
+###################################
+import math
+
+def distance(x, y, dim = 3):
+    squared_d = 0.0
+    for i in range(0, dim):
+        t = x[i] - y[i]
+        squared_d += t * t
+    return math.sqrt(squared_d)
+
+def vector_from_two_points(src, dest, dim = 3):
+    v = []
+    for i in range(0, dim):
+        v.append(dest[i] - src[i])
+    return v
+
+def space_of_points(points, dim = 3):
+    llc = []
+    urc = []
+    for i in range(0, dim):
+        llc.append(sys.float_info.max)
+        urc.append(-sys.float_info.max)
+    for x in points:
+        for i in range(0, dim):
+            if llc[i] > x[i]:
+                llc[i] = x[i]
+            if urc[i] < x[i]:
+                urc[i] = x[i]
+    center = []
+    for i in range(0, dim):
+        center.append(0.5 *  (urc[i] + llc[i]))
+    r = 0.5 * distance(urc, llc)
+    return (center, r)
+
+def space_of_boxes(boxes, dim = 3):
+    points = []
+    for x in boxes:
+        points.append(x[0])
+        points.append(x[1])
+    return space_of_points(points, dim)
+
+###################################
+##           数据解析
+###################################
+def boxes_parser(file_name, right_handed = True, dim = 3):
+    boxes = []
+    with open(file_name, 'r') as src:
+        for line in src:
+            coords = line.strip().split()
+            n = len(coords)
+            half = int(n / 2)
+            llc = []
+            for i in range(0, half):
+                llc.append(float(coords[i]))
+            if right_handed:
+                llc[dim - 1] = -llc[dim - 1]
+            urc = []
+            for i in range(half, n):
+                urc.append(float(coords[i]))
+            if right_handed:
+                urc[dim - 1] = -urc[dim - 1]
+            box = (llc, urc)
+            boxes.append(box)
+    src.close()
+    return boxes
+        
+###################################
+##           生成模型文件
+###################################
+def output_point(file, x, dim):
+    for i in range(0, dim):
+        if i < dim - 1:
+            file.write('%f, ' % (x[i]))
+        else:
+            file.write('%f' % (x[i]))
+
+def vertices_of_box(box, dim = 3):
+    begin = box[0]
+    vs = []
+    k = 1
+    vs.append(begin[:])
+    for i in range(0, dim):
+        for j in range(0, k):
+            v = vs[j][:]
+            v[i] += box[1][i] - box[0][i]
+            vs.append(v)
+        k *= 2
+    return vs
+
+def create_paths(vertices, size):
+    paths = []
+    n = len(vertices)
+    for i in range(0, n):
+        start = vertices[i]
+        for j in range(i, n):
+            maybe_stop = vertices[j]
+            d = distance(start, maybe_stop)
+            hit = 0
+            for t in size:
+                if abs(d - t) < sys.float_info.epsilon:
+                    hit += 1
+            if hit > 0:
+                paths.append([start, maybe_stop])
+    return paths
+
+def paths_sort(paths):
+    for path in paths:
+        a = path[0]
+        b = path[1]
+        c = vector_from_two_points(a, b)
+        for d in c:
+            if d < 0:
+                path[0] = b
+                path[1] = a
+                break
+    return paths
+
+def output_boxes_model(boxes, object_name, dim = 3):
+    model = open(object_name + '.inc', 'w')
+    model.write('#declare ' + object_name + '_body = union {\n')
+    for x in boxes:
+        model.write('  box {\n')
+        model.write('    <')
+        output_point(model, x[0], dim)
+        model.write('>,\n    <')
+        output_point(model, x[1], dim)
+        model.write('>\n  }\n')
+    model.write('} // ' + object_name + '_body end\n\n')
+    model.write('#declare ' + object_name + '_frame_body = union {\n')
+    for x in boxes:
+        x_vertices = vertices_of_box(x)
+        x_size = vector_from_two_points(x[0], x[1], dim)
+        for i in range(0, len(x_size)):
+            x_size[i] = abs(x_size[i])
+        x_paths = create_paths(x_vertices, x_size)
+        x_paths = paths_sort(x_paths)
+        for path in x_paths:
+            model.write('  box { <')
+            output_point(model, path[0], dim)
+            model.write('> - delta_of_' + object_name + '_frame, <')
+            output_point(model, path[1], dim)
+            model.write('> + delta_of_' + object_name + '_frame }\n')
+    model.write('} // ' + object_name + '_frame_body end\n')
+    model.close()
+
+###################################
+##           生成视图文件
+###################################
+def view_prelude(view, background):
+    prelude = [
+        '#version 3.7;\n',
+        '#include "colors.inc"\n',
+        'background {color ' + background + '}\n',
+        'global_settings {assumed_gamma 1.0}\n\n'
+    ]
+    view.writelines(prelude)
+
+def space_of_scene(view, x, r):
+    view.write('#declare model_center = <%f, %f, %f>;\n' % ((x[0], x[1], x[2])))
+    view.write('#declare model_radius = %f;\n' % (r))
+    view.write('#declare view_center = model_center;\n\n')
+
+def place_camera(view, offset_coefficient):
+    view.write('#declare offset_coefficient = %f;\n' % (offset_coefficient))
+    view.write('camera {\n')
+    #view.write('  orthographic\n')
+    view.write('  location -offset_coefficient * model_radius * z + model_center * z\n')
+    view.write('  look_at <0, 0, 0>\n')
+    view.write('  translate view_center\n')
+    view.write('}\n\n')
+
+def place_light_source(view, color = [1.0, 1.0, 1.0]):
+    view.write('light_source {\n')
+    view.write('  model_center + <0, 0, -10 * model_radius>\n')
+    view.write('  color rgb <%f, %f, %f>\n'  % (color[0], color[1], color[2]))
+    view.write('  shadowless\n')
+    view.write('}\n\n')
+
+def set_pen(view, object_name, line_width):
+    view.write('#declare line_width_of_' 
+               + object_name 
+               + ' = %f;\n' % line_width)
+    view.write('#declare delta_of_' 
+               + object_name 
+               + '_frame = %f * <0.5, 0.5, 0.5>;\n' % line_width)
+    view.write('\n')
+
+def set_texture(view, object_name, args):
+    view.write('#declare color_of_' + object_name + ' = texture {\n')
+    view.write('  pigment {\n')
+    view.write('    color ' + args.box_color + '\n')
+    view.write('  }\n')
+    view.write('}\n\n')
+    view.write('#declare color_of_' + object_name + '_frame = texture {\n')
+    view.write('  pigment {\n')
+    view.write('    color ' + args.line_color + '\n')
+    view.write('  }\n')
+    view.write('}\n\n')
+
+def place_model(view, object_name):
+    view.write('#include "' + object_name + '.inc"\n')
+    view.write('#declare ' + object_name + ' = object {\n')
+    view.write('  ' + object_name + '_body\n')
+    view.write('  texture { color_of_' + object_name + ' }\n')
+    view.write('}\n')
+    view.write('#declare ' + object_name + '_frame = object {\n')
+    view.write('  ' + object_name + '_frame_body\n')
+    view.write('  texture { color_of_' + object_name + '_frame }\n')
+    view.write('}\n')
+    view.write('object {\n')
+    view.write('  union {\n')
+    view.write('    object { ' + object_name + ' }\n')
+    view.write('    object { ' + object_name + '_frame }\n')
+    view.write('  }\n')
+    view.write('}\n\n')
+
+def view_forward(view, args, placer):
+    placer(view, args.object)
+
+###################################
+##           命令行界面
+###################################
+
+import os
+import sys
+import argparse
+if __name__=="__main__":
+    opt = argparse.ArgumentParser()
+    opt.add_argument('--object', metavar = 'name')
+    opt.add_argument('--line-width', metavar = 'n.n', type = float)
+    opt.add_argument('--line-color', metavar = '<r, g, b>')
+    opt.add_argument('--box-color', metavar = '<r, g, b>')
+    opt.add_argument('--offset-coefficient', metavar = 'n.n', type = float, 
+                     help = 'coefficient for distance to model center')
+    opt.add_argument('source', help = 'ASCII format file for boxes')
+    args = opt.parse_args()
+    
+    if not args.object:
+        (skip, file_name) = os.path.split(args.source)
+        (args.object, skip) = os.path.splitext(file_name)
+            
+    if not args.offset_coefficient:
+        args.offset_coefficient = 2
+    
+    boxes = boxes_parser(args.source)
+    (model_center, r) = space_of_boxes(boxes)
+    
+    # 生成模型文件
+    output_boxes_model(boxes, args.object)
+    if not args.line_width:
+        args.line_width = r / 1000.0
+    else:
+        args.line_width = args.line_width * r
+    
+    # 生成视图文件
+    (model_center, r) = space_of_boxes(boxes)
+    with open(args.object + '.pov', 'w') as view:
+        view_prelude(view, 'Black')
+        space_of_scene(view, model_center, r)
+        place_camera(view, args.offset_coefficient)
+        place_light_source(view)
+        if not args.line_color:
+            args.line_color = 'rgb <0.6, 0.6, 0.6>'
+        else:
+            args.line_color = 'rgb ' + args.line_color
+        if not args.box_color:
+            args.box_color = 'rgbt <0.3, 1.0, 0.04, 0.75>'
+        else:
+            args.box_color = 'rgbt ' + args.box_color
+        set_pen(view, args.object, args.line_width)
+        set_texture(view, args.object, args)
+        view_forward(view, args, place_model)
+    view.close()
